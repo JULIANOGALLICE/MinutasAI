@@ -1,0 +1,5 @@
+{
+  "name": "MinutasAI",
+  "description": "Sistema de lavratura de escrituras com IA. Extrai dados de documentos em PDF, identifica partes e gera minutas baseadas em modelos.",
+  "requestFramePermissions": []
+}
