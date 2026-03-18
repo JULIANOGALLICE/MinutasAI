@@ -55,7 +55,7 @@ export async function extractTextFromPdf(base64Pdf: string): Promise<string> {
           },
         },
         {
-          text: "Analise este documento PDF que contém um modelo de escritura (minuta). Extraia APENAS o texto principal referente à estrutura da minuta em si. IGNORE cabeçalhos, rodapés, numeração de páginas, carimbos, assinaturas, dados específicos de cartório que não façam parte do corpo do texto, ou qualquer outra informação desnecessária. Mantenha a formatação, as cláusulas e as quebras de linha do texto principal. Retorne EXCLUSIVAMENTE o texto limpo da minuta.",
+          text: "Analise este documento PDF que contém um modelo de escritura (minuta). Extraia APENAS o texto principal referente à estrutura da minuta em si. IGNORE cabeçalhos, rodapés, numeração de páginas, carimbos, assinaturas, dados específicos de cartório que não façam parte do corpo do texto, ou qualquer outra informação desnecessária. Mantenha a formatação, as cláusulas e as quebras de linha do texto principal. Se houver formatações como negrito, itálico ou cores no PDF, represente-as usando tags HTML (<b>, <i>, <span style='color:...'>). Retorne EXCLUSIVAMENTE o texto limpo da minuta com as devidas tags HTML de formatação.",
         },
       ],
     });
@@ -159,6 +159,8 @@ Instruções RIGOROSAS:
 7. INFORMAÇÕES ADICIONAIS: Se houver "Informações e Cláusulas Adicionais" fornecidas acima (como forma de pagamento, usufruto, incomunicabilidade, etc.), você DEVE redigir e incluir essas cláusulas no corpo da escritura, adaptando-as ao estilo do modelo.
 8. Não resuma a escritura. O resultado final deve ser a escritura completa, pronta para ser lida e preenchida nos espaços faltantes.
 9. Retorne o texto formatado em Markdown para facilitar a leitura.`;
+
+  instructions += `\n\nATENÇÃO - FORMATAÇÃO RICA (WORD): Você DEVE utilizar tags HTML para formatar o texto (ex: <b>negrito</b>, <i>itálico</i>, <span style="color: red">texto colorido</span>) sempre que solicitado ou para destacar informações. O modelo fornecido também pode conter essas tags HTML, que devem ser estritamente respeitadas e mantidas na saída.`;
 
   instructions = instructions
     .replace('{{deedType}}', deedType)

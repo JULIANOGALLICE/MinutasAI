@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, FileText, Users, FileSignature, CheckCircle, ArrowRight, RefreshCw, Copy, Plus, Trash2, Edit2, Database, Save, X, Search, Eye, LogOut, Settings, Clock, UserPlus, Key } from 'lucide-react';
+import { Upload, FileText, Users, FileSignature, CheckCircle, ArrowRight, RefreshCw, Copy, Plus, Trash2, Edit2, Database, Save, X, Search, Eye, LogOut, Settings, Clock, UserPlus, Key, Download } from 'lucide-react';
 import Markdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
 import { extractPeopleFromDocuments, generateDeedDraft, extractTextFromPdf } from './services/geminiService';
 import { fileToBase64 } from './utils/fileUtils';
 
@@ -49,6 +50,119 @@ const COMMON_ROLES = [
   'Não Participa (Ignorar)',
 ];
 
+const copyRichTextToClipboard = async (element: HTMLElement, plainTextFallback: string) => {
+  const htmlContent = element.innerHTML;
+  const textContent = element.innerText;
+  
+  // Construir um HTML extremamente robusto para o Word
+  // Usamos uma div com estilos inline (Word prefere inline no clipboard)
+  const documentHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body { font-family: Arial, sans-serif; font-size: 11pt; color: #000000; text-align: justify; }
+        p { margin-bottom: 12pt; }
+      </style>
+    </head>
+    <body>
+      <!--StartFragment-->
+      <div style="font-family: Arial, sans-serif; font-size: 11pt; color: #000000; text-align: justify;">
+        ${htmlContent}
+      </div>
+      <!--EndFragment-->
+    </body>
+    </html>
+  `;
+
+  try {
+    // Tentativa 1: API Moderna de Clipboard (se o navegador/iframe permitir)
+    const blobHtml = new Blob([documentHtml], { type: 'text/html' });
+    const blobText = new Blob([textContent], { type: 'text/plain' });
+    
+    const data = [new ClipboardItem({
+      'text/html': blobHtml,
+      'text/plain': blobText,
+    })];
+    
+    await navigator.clipboard.write(data);
+    return true;
+  } catch (err) {
+    console.warn('Clipboard API falhou (provavelmente restrição de iframe), tentando fallback...', err);
+    
+    // Tentativa 2: Interceptação do evento de cópia + execCommand
+    // Isso garante que o HTML exato seja enviado para a área de transferência, ignorando a serialização do navegador
+    let successful = false;
+    
+    const listener = (e: ClipboardEvent) => {
+      e.preventDefault();
+      e.clipboardData?.setData('text/html', documentHtml);
+      e.clipboardData?.setData('text/plain', textContent);
+    };
+    
+    document.addEventListener('copy', listener);
+    
+    // Cria um elemento temporário apenas para ter algo selecionado
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = 'Copiando...';
+    tempDiv.style.position = 'absolute';
+    tempDiv.style.left = '-9999px';
+    document.body.appendChild(tempDiv);
+    
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(tempDiv);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    
+    try {
+      successful = document.execCommand('copy');
+    } catch (execErr) {
+      console.error('execCommand falhou:', execErr);
+    }
+    
+    selection?.removeAllRanges();
+    document.body.removeChild(tempDiv);
+    document.removeEventListener('copy', listener);
+    
+    return successful;
+  }
+};
+
+const downloadAsWord = (element: HTMLElement, filename: string) => {
+  const html = element.innerHTML;
+  const css = `
+    <style>
+      body { font-family: Arial, sans-serif; font-size: 11pt; color: #000000; text-align: justify; }
+      p { margin-bottom: 12pt; }
+      span { color: inherit; }
+    </style>
+  `;
+  const documentHtml = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+    <head>
+      <meta charset="utf-8">
+      <title>${filename}</title>
+      ${css}
+    </head>
+    <body>
+      ${html}
+    </body>
+    </html>
+  `;
+
+  const blob = new Blob(['\ufeff', documentHtml], { type: 'application/msword' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${filename}.doc`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loginUsername, setLoginUsername] = useState('');
@@ -91,6 +205,9 @@ export default function App() {
   const [geminiApiKey, setGeminiApiKey] = useState('');
   const [historyList, setHistoryList] = useState<HistoryItem[]>([]);
   const [viewingHistory, setViewingHistory] = useState<HistoryItem | null>(null);
+  
+  const draftRef = useRef<HTMLDivElement>(null);
+  const historyDraftRef = useRef<HTMLDivElement>(null);
 
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -451,8 +568,46 @@ export default function App() {
     }
   };
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(draft);
+  const handleCopy = async () => {
+    if (draftRef.current) {
+      const success = await copyRichTextToClipboard(draftRef.current, draft);
+      if (success) {
+        alert('Minuta copiada com formatação para a área de transferência!');
+      } else {
+        navigator.clipboard.writeText(draft);
+        alert('Minuta copiada (texto simples)!');
+      }
+    } else {
+      navigator.clipboard.writeText(draft);
+      alert('Minuta copiada (texto simples)!');
+    }
+  };
+
+  const handleCopyHistory = async () => {
+    if (historyDraftRef.current && viewingHistory) {
+      const success = await copyRichTextToClipboard(historyDraftRef.current, viewingHistory.content);
+      if (success) {
+        alert('Minuta copiada com formatação para a área de transferência!');
+      } else {
+        navigator.clipboard.writeText(viewingHistory.content);
+        alert('Minuta copiada (texto simples)!');
+      }
+    } else if (viewingHistory) {
+      navigator.clipboard.writeText(viewingHistory.content);
+      alert('Minuta copiada (texto simples)!');
+    }
+  };
+
+  const handleDownload = () => {
+    if (draftRef.current) {
+      downloadAsWord(draftRef.current, 'Minuta');
+    }
+  };
+
+  const handleDownloadHistory = () => {
+    if (historyDraftRef.current && viewingHistory) {
+      downloadAsWord(historyDraftRef.current, `Minuta_${viewingHistory.id}`);
+    }
   };
 
   const handleReset = () => {
@@ -1045,12 +1200,19 @@ export default function App() {
                         <Copy className="w-4 h-4" />
                         Copiar
                       </button>
+                      <button 
+                        onClick={handleDownload}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        <Download className="w-4 h-4" />
+                        Download Word
+                      </button>
                     </div>
                   </div>
                   
-                  <div className="flex-1 overflow-y-auto p-8 bg-white">
+                  <div className="flex-1 overflow-y-auto p-8 bg-white" ref={draftRef}>
                     <div className="prose prose-slate max-w-none prose-headings:font-serif prose-p:text-justify prose-p:leading-relaxed">
-                      <Markdown>{draft}</Markdown>
+                      <Markdown rehypePlugins={[rehypeRaw]}>{draft}</Markdown>
                     </div>
                   </div>
                 </div>
@@ -1165,6 +1327,8 @@ export default function App() {
               />
               <p className="text-xs text-slate-500 mt-4">
                 <strong>Variáveis disponíveis:</strong> {'{{deedType}}'}, {'{{rolesText}}'}, {'{{additionalDetailsText}}'}
+                <br /><br />
+                <strong>Formatação Rica:</strong> Você pode usar tags HTML diretamente no texto ou nos modelos (ex: <code>&lt;b&gt;negrito&lt;/b&gt;</code>, <code>&lt;i&gt;itálico&lt;/i&gt;</code>, <code>&lt;span style="color: red"&gt;texto vermelho&lt;/span&gt;</code>) para que a IA gere a minuta com essa formatação.
               </p>
             </div>
 
@@ -1282,8 +1446,10 @@ export default function App() {
                 <X className="w-6 h-6" />
               </button>
             </div>
-            <div className="p-6 overflow-y-auto flex-1 whitespace-pre-wrap font-mono text-sm text-slate-700">
-              {viewingMinuta.content}
+            <div className="p-6 overflow-y-auto flex-1 bg-slate-50">
+              <div className="prose prose-slate max-w-none prose-headings:font-serif prose-p:text-justify prose-p:leading-relaxed bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
+                <Markdown rehypePlugins={[rehypeRaw]}>{viewingMinuta.content}</Markdown>
+              </div>
             </div>
           </div>
         </div>
@@ -1299,13 +1465,29 @@ export default function App() {
                   Gerado por {viewingHistory.username} em {new Date(viewingHistory.created_at).toLocaleString('pt-BR')}
                 </p>
               </div>
-              <button onClick={() => setViewingHistory(null)} className="text-slate-400 hover:text-slate-600 transition-colors">
-                <X className="w-6 h-6" />
-              </button>
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={handleCopyHistory}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <Copy className="w-4 h-4" />
+                  Copiar
+                </button>
+                <button 
+                  onClick={handleDownloadHistory}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  Download Word
+                </button>
+                <button onClick={() => setViewingHistory(null)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
             </div>
             <div className="p-6 overflow-y-auto flex-1 bg-slate-50">
-              <div className="prose prose-slate max-w-none prose-headings:font-serif prose-p:text-justify prose-p:leading-relaxed bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
-                <Markdown>{viewingHistory.content}</Markdown>
+              <div className="prose prose-slate max-w-none prose-headings:font-serif prose-p:text-justify prose-p:leading-relaxed bg-white p-8 rounded-xl border border-slate-200 shadow-sm" ref={historyDraftRef}>
+                <Markdown rehypePlugins={[rehypeRaw]}>{viewingHistory.content}</Markdown>
               </div>
             </div>
           </div>

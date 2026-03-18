@@ -117,8 +117,8 @@ async function startServer() {
     const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
     res.cookie('token', token, { 
       httpOnly: true, 
-      secure: true,
-      sameSite: 'none'
+      secure: false,
+      sameSite: 'lax'
     });
     res.json({ id: user.id, username: user.username, role: user.role });
   });
