@@ -112,7 +112,8 @@ export async function generateDeedDraft(
   roles: Record<string, string>,
   minutaContent?: string,
   additionalDetails?: string,
-  customInstructions?: string
+  customInstructions?: string,
+  templateInstructions?: string
 ): Promise<string> {
   const parts: any[] = [
     {
@@ -159,6 +160,10 @@ Instruções RIGOROSAS:
 7. INFORMAÇÕES ADICIONAIS: Se houver "Informações e Cláusulas Adicionais" fornecidas acima (como forma de pagamento, usufruto, incomunicabilidade, etc.), você DEVE redigir e incluir essas cláusulas no corpo da escritura, adaptando-as ao estilo do modelo.
 8. Não resuma a escritura. O resultado final deve ser a escritura completa, pronta para ser lida e preenchida nos espaços faltantes.
 9. Retorne o texto formatado em Markdown para facilitar a leitura.`;
+
+  if (templateInstructions) {
+    instructions += `\n\nINSTRUÇÕES ESPECÍFICAS DESTA MINUTA:\n${templateInstructions}`;
+  }
 
   instructions += `\n\nATENÇÃO - FORMATAÇÃO RICA (WORD): Você DEVE utilizar tags HTML para formatar o texto (ex: <b>negrito</b>, <i>itálico</i>, <span style="color: red">texto colorido</span>) sempre que solicitado ou para destacar informações. O modelo fornecido também pode conter essas tags HTML, que devem ser estritamente respeitadas e mantidas na saída.`;
 

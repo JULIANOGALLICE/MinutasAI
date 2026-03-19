@@ -14,6 +14,7 @@ db.exec(`
     name TEXT NOT NULL,
     description TEXT,
     content TEXT NOT NULL,
+    ai_instructions TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -40,7 +41,36 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
+
+  CREATE TABLE IF NOT EXISTS roles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
+
+try {
+  db.exec("ALTER TABLE minutas ADD COLUMN ai_instructions TEXT;");
+} catch (e) {
+  // Column likely already exists, ignore
+}
+
+// Seed initial roles
+const initialRoles = [
+  'Vendedor(a)', 'Comprador(a)', 'Doador(a)', 'Donatário(a)',
+  'Inventariante', 'Herdeiro(a)', 'Meeiro(a)', 'Falecido(a)',
+  'Divorciando(a)', 'Outorgante', 'Outorgado(a)', 'Testador(a)',
+  'Cônjuge/Companheiro(a)', 'Anuente', 'Testemunha', 'Não Participa (Ignorar)'
+];
+
+const roleCount = db.prepare("SELECT COUNT(*) as count FROM roles").get() as any;
+if (roleCount.count === 0) {
+  const insertRole = db.prepare("INSERT INTO roles (name) VALUES (?)");
+  const insertMany = db.transaction((roles) => {
+    for (const role of roles) insertRole.run(role);
+  });
+  insertMany(initialRoles);
+}
 
 // Seed initial admin user
 const adminUser = db.prepare("SELECT * FROM users WHERE username = 'adm'").get();
@@ -303,31 +333,31 @@ async function startServer() {
   });
 
   app.post("/api/minutas", authenticate, requireAdmin, (req, res) => {
-    const { name, description, content } = req.body;
+    const { name, description, content, ai_instructions } = req.body;
     if (!name || !content) {
       return res.status(400).json({ error: "Nome e conteúdo são obrigatórios" });
     }
     try {
-      const stmt = db.prepare("INSERT INTO minutas (name, description, content) VALUES (?, ?, ?)");
-      const info = stmt.run(name, description, content);
-      res.json({ id: info.lastInsertRowid, name, description, content });
+      const stmt = db.prepare("INSERT INTO minutas (name, description, content, ai_instructions) VALUES (?, ?, ?, ?)");
+      const info = stmt.run(name, description, content, ai_instructions || null);
+      res.json({ id: info.lastInsertRowid, name, description, content, ai_instructions });
     } catch (error) {
       res.status(500).json({ error: "Erro ao criar minuta" });
     }
   });
 
   app.put("/api/minutas/:id", authenticate, requireAdmin, (req, res) => {
-    const { name, description, content } = req.body;
+    const { name, description, content, ai_instructions } = req.body;
     if (!name || !content) {
       return res.status(400).json({ error: "Nome e conteúdo são obrigatórios" });
     }
     try {
-      const stmt = db.prepare("UPDATE minutas SET name = ?, description = ?, content = ? WHERE id = ?");
-      const info = stmt.run(name, description, content, req.params.id);
+      const stmt = db.prepare("UPDATE minutas SET name = ?, description = ?, content = ?, ai_instructions = ? WHERE id = ?");
+      const info = stmt.run(name, description, content, ai_instructions || null, req.params.id);
       if (info.changes === 0) {
         return res.status(404).json({ error: "Minuta não encontrada" });
       }
-      res.json({ id: req.params.id, name, description, content });
+      res.json({ id: req.params.id, name, description, content, ai_instructions });
     } catch (error) {
       res.status(500).json({ error: "Erro ao atualizar minuta" });
     }
@@ -343,6 +373,66 @@ async function startServer() {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Erro ao deletar minuta" });
+    }
+  });
+
+  // Roles API
+  app.get("/api/roles", authenticate, (req, res) => {
+    try {
+      const roles = db.prepare("SELECT * FROM roles ORDER BY name ASC").all();
+      res.json(roles);
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao buscar papéis" });
+    }
+  });
+
+  app.post("/api/roles", authenticate, requireAdmin, (req, res) => {
+    const { name } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: "Nome do papel é obrigatório" });
+    }
+    try {
+      const stmt = db.prepare("INSERT INTO roles (name) VALUES (?)");
+      const info = stmt.run(name);
+      res.json({ id: info.lastInsertRowid, name });
+    } catch (error: any) {
+      if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+        return res.status(400).json({ error: "Papel já existe" });
+      }
+      res.status(500).json({ error: "Erro ao criar papel" });
+    }
+  });
+
+  app.put("/api/roles/:id", authenticate, requireAdmin, (req, res) => {
+    const { name } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: "Nome do papel é obrigatório" });
+    }
+    try {
+      const stmt = db.prepare("UPDATE roles SET name = ? WHERE id = ?");
+      const info = stmt.run(name, req.params.id);
+      if (info.changes === 0) {
+        return res.status(404).json({ error: "Papel não encontrado" });
+      }
+      res.json({ id: req.params.id, name });
+    } catch (error: any) {
+      if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+        return res.status(400).json({ error: "Papel já existe" });
+      }
+      res.status(500).json({ error: "Erro ao atualizar papel" });
+    }
+  });
+
+  app.delete("/api/roles/:id", authenticate, requireAdmin, (req, res) => {
+    try {
+      const stmt = db.prepare("DELETE FROM roles WHERE id = ?");
+      const info = stmt.run(req.params.id);
+      if (info.changes === 0) {
+        return res.status(404).json({ error: "Papel não encontrado" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao deletar papel" });
     }
   });
 

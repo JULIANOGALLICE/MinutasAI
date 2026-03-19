@@ -1,2 +1,20 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
+
+.ql-editor {
+  min-height: 300px;
+  font-family: inherit;
+  font-size: 0.875rem;
+}
+
+.ql-toolbar.ql-snow {
+  border: none;
+  border-bottom: 1px solid #e2e8f0;
+  background-color: #f8fafc;
+  border-top-left-radius: 0.75rem;
+  border-top-right-radius: 0.75rem;
+}
+
+.ql-container.ql-snow {
+  border: none;
+}

@@ -1,12 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, FileText, Users, FileSignature, CheckCircle, ArrowRight, RefreshCw, Copy, Plus, Trash2, Edit2, Database, Save, X, Search, Eye, LogOut, Settings, Clock, UserPlus, Key, Download } from 'lucide-react';
+import { Upload, FileText, Users, FileSignature, CheckCircle, ArrowRight, RefreshCw, Copy, Plus, Trash2, Edit2, Database, Save, X, Search, Eye, LogOut, Settings, Clock, UserPlus, Key, Download, Edit } from 'lucide-react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
 import { extractPeopleFromDocuments, generateDeedDraft, extractTextFromPdf } from './services/geminiService';
 import { fileToBase64 } from './utils/fileUtils';
 
 type Step = 'upload' | 'extracting' | 'roles' | 'generating' | 'result';
-type Tab = 'gerar' | 'minutas' | 'usuarios' | 'configuracoes' | 'historico';
+type Tab = 'gerar' | 'minutas' | 'usuarios' | 'configuracoes' | 'historico' | 'papeis';
 
 interface User {
   id: number;
@@ -19,6 +21,7 @@ interface Minuta {
   name: string;
   description: string;
   content: string;
+  ai_instructions?: string;
   created_at: string;
 }
 
@@ -30,25 +33,6 @@ interface HistoryItem {
   content: string;
   created_at: string;
 }
-
-const COMMON_ROLES = [
-  'Vendedor(a)',
-  'Comprador(a)',
-  'Doador(a)',
-  'Donatário(a)',
-  'Inventariante',
-  'Herdeiro(a)',
-  'Meeiro(a)',
-  'Falecido(a)',
-  'Divorciando(a)',
-  'Outorgante',
-  'Outorgado(a)',
-  'Testador(a)',
-  'Cônjuge/Companheiro(a)',
-  'Anuente',
-  'Testemunha',
-  'Não Participa (Ignorar)',
-];
 
 const copyRichTextToClipboard = async (element: HTMLElement, plainTextFallback: string) => {
   const htmlContent = element.innerHTML;
@@ -191,7 +175,7 @@ export default function App() {
   // --- State for Minutas ---
   const [minutas, setMinutas] = useState<Minuta[]>([]);
   const [isEditingMinuta, setIsEditingMinuta] = useState(false);
-  const [currentMinuta, setCurrentMinuta] = useState<Partial<Minuta>>({ name: '', description: '', content: '' });
+  const [currentMinuta, setCurrentMinuta] = useState<Partial<Minuta>>({ name: '', description: '', content: '', ai_instructions: '' });
   const [minutaSearchTerm, setMinutaSearchTerm] = useState('');
   const [isExtractingText, setIsExtractingText] = useState(false);
   const [viewingMinuta, setViewingMinuta] = useState<Minuta | null>(null);
@@ -206,6 +190,11 @@ export default function App() {
   const [historyList, setHistoryList] = useState<HistoryItem[]>([]);
   const [viewingHistory, setViewingHistory] = useState<HistoryItem | null>(null);
   
+  // --- State for Roles ---
+  const [dbRoles, setDbRoles] = useState<{id: number, name: string}[]>([]);
+  const [isEditingRole, setIsEditingRole] = useState(false);
+  const [currentRole, setCurrentRole] = useState<{id?: number, name: string}>({ name: '' });
+
   const draftRef = useRef<HTMLDivElement>(null);
   const historyDraftRef = useRef<HTMLDivElement>(null);
 
@@ -223,6 +212,7 @@ export default function App() {
   useEffect(() => {
     if (user) {
       fetchMinutas();
+      fetchRoles();
       if (activeTab === 'historico') fetchHistory();
       if (user.role === 'administrador') {
         if (activeTab === 'usuarios') fetchUsers();
@@ -230,6 +220,60 @@ export default function App() {
       }
     }
   }, [user, activeTab]);
+
+  const fetchRoles = async () => {
+    try {
+      const res = await fetch('/api/roles');
+      if (res.ok) {
+        const data = await res.json();
+        setDbRoles(data);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar papéis:', err);
+    }
+  };
+
+  const handleSaveRole = async () => {
+    try {
+      if (!currentRole.name) {
+        alert('Nome do papel é obrigatório.');
+        return;
+      }
+
+      const method = currentRole.id ? 'PUT' : 'POST';
+      const url = currentRole.id ? `/api/roles/${currentRole.id}` : '/api/roles';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(currentRole),
+      });
+
+      if (res.ok) {
+        await fetchRoles();
+        setIsEditingRole(false);
+        setCurrentRole({ name: '' });
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Erro ao salvar papel.');
+      }
+    } catch (err) {
+      console.error('Erro ao salvar papel:', err);
+      alert('Erro ao salvar papel.');
+    }
+  };
+
+  const handleDeleteRole = async (id: number) => {
+    if (!confirm('Tem certeza que deseja deletar este papel?')) return;
+    try {
+      const res = await fetch(`/api/roles/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        await fetchRoles();
+      }
+    } catch (err) {
+      console.error('Erro ao deletar papel:', err);
+    }
+  };
 
   const checkAuth = async () => {
     try {
@@ -415,7 +459,7 @@ export default function App() {
       if (res.ok) {
         await fetchMinutas();
         setIsEditingMinuta(false);
-        setCurrentMinuta({ name: '', description: '', content: '' });
+        setCurrentMinuta({ name: '', description: '', content: '', ai_instructions: '' });
       } else {
         const data = await res.json();
         alert(data.error || 'Erro ao salvar minuta.');
@@ -483,7 +527,7 @@ export default function App() {
       
       const initialRoles: Record<string, string> = {};
       people.forEach(person => {
-        initialRoles[person] = COMMON_ROLES[0];
+        initialRoles[person] = dbRoles.length > 0 ? dbRoles[0].name : '';
       });
       setRoles(initialRoles);
       
@@ -507,6 +551,7 @@ export default function App() {
     try {
       let minutaContent = '';
       let minutaName = '';
+      let templateInstructions = '';
 
       if (selectedMinutaId) {
         const selectedMinuta = minutas.find(m => m.id === selectedMinutaId);
@@ -515,6 +560,7 @@ export default function App() {
         }
         minutaContent = selectedMinuta.content;
         minutaName = selectedMinuta.name;
+        templateInstructions = selectedMinuta.ai_instructions || '';
         setModelUsed(selectedMinuta.name);
       } else {
         setModelUsed('Padrão do Sistema');
@@ -541,7 +587,8 @@ export default function App() {
         activeRoles,
         minutaContent,
         additionalDetails,
-        customInstructions
+        customInstructions,
+        templateInstructions
       );
       
       setDraft(generatedDraft);
@@ -706,6 +753,12 @@ export default function App() {
                   Usuários
                 </button>
                 <button 
+                  onClick={() => setActiveTab('papeis')}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${activeTab === 'papeis' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'}`}
+                >
+                  Papéis
+                </button>
+                <button 
                   onClick={() => setActiveTab('configuracoes')}
                   className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${activeTab === 'configuracoes' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'}`}
                 >
@@ -748,7 +801,7 @@ export default function App() {
               {!isEditingMinuta && user.role === 'administrador' && (
                 <button
                   onClick={() => {
-                    setCurrentMinuta({ name: '', description: '', content: '' });
+                    setCurrentMinuta({ name: '', description: '', content: '', ai_instructions: '' });
                     setIsEditingMinuta(true);
                   }}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm"
@@ -825,11 +878,35 @@ export default function App() {
                     />
                     <span className="text-xs text-slate-500">Ou cole o texto diretamente abaixo</span>
                   </div>
+                  <div className="bg-white rounded-xl border border-slate-300 overflow-hidden focus-within:ring-2 focus-within:ring-indigo-600 focus-within:border-indigo-600">
+                    <ReactQuill 
+                      theme="snow"
+                      value={currentMinuta.content}
+                      onChange={(content) => setCurrentMinuta({...currentMinuta, content})}
+                      placeholder="Cole aqui o texto completo do modelo da minuta..."
+                      className="min-h-[300px]"
+                      modules={{
+                        toolbar: [
+                          [{ 'header': [1, 2, 3, false] }],
+                          ['bold', 'italic', 'underline', 'strike'],
+                          [{ 'color': [] }, { 'background': [] }],
+                          [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                          [{ 'align': [] }],
+                          ['clean']
+                        ]
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Instruções Específicas para a IA (Opcional)</label>
+                  <p className="text-xs text-slate-500 mb-2">Adicione instruções que a IA deve seguir especificamente ao gerar esta minuta.</p>
                   <textarea 
-                    value={currentMinuta.content}
-                    onChange={(e) => setCurrentMinuta({...currentMinuta, content: e.target.value})}
-                    placeholder="Cole aqui o texto completo do modelo da minuta..."
-                    className="w-full p-4 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 outline-none min-h-[300px] resize-y font-mono text-sm"
+                    value={currentMinuta.ai_instructions || ''}
+                    onChange={(e) => setCurrentMinuta({...currentMinuta, ai_instructions: e.target.value})}
+                    placeholder="Ex: Certifique-se de incluir a cláusula de incomunicabilidade. Sempre use o termo 'Outorgante' em vez de 'Vendedor'."
+                    className="w-full p-4 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 outline-none min-h-[100px] resize-y text-sm"
                   />
                 </div>
 
@@ -1129,8 +1206,8 @@ export default function App() {
                               onChange={(e) => handleRoleChange(person, e.target.value)}
                               className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 outline-none"
                             >
-                              {COMMON_ROLES.map(role => (
-                                <option key={role} value={role}>{role}</option>
+                              {dbRoles.map(role => (
+                                <option key={role.id} value={role.name}>{role.name}</option>
                               ))}
                             </select>
                           </div>
@@ -1299,6 +1376,105 @@ export default function App() {
                   {usersList.length === 0 && (
                     <tr>
                       <td colSpan={4} className="p-8 text-center text-slate-500">Nenhum usuário encontrado.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'papeis' && user.role === 'administrador' && (
+          <div className="space-y-6 animate-in fade-in duration-500">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-800">Gerenciamento de Papéis</h2>
+                <p className="text-slate-500">Adicione, edite ou remova papéis para as minutas.</p>
+              </div>
+              <button
+                onClick={() => {
+                  setCurrentRole({ name: '' });
+                  setIsEditingRole(true);
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                <Plus className="w-5 h-5" />
+                Novo Papel
+              </button>
+            </div>
+
+            {isEditingRole && currentRole && (
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 className="text-lg font-semibold mb-4">{currentRole.id ? 'Editar Papel' : 'Novo Papel'}</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Nome do Papel</label>
+                    <input
+                      type="text"
+                      value={currentRole.name}
+                      onChange={(e) => setCurrentRole({ ...currentRole, name: e.target.value })}
+                      className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="Ex: Vendedor(a)"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-3">
+                    <button
+                      onClick={() => {
+                        setIsEditingRole(false);
+                        setCurrentRole(null);
+                      }}
+                      className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleSaveRole}
+                      className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                    >
+                      <Save className="w-5 h-5" />
+                      Salvar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="p-4 font-semibold text-slate-700">Nome</th>
+                    <th className="p-4 font-semibold text-slate-700 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {dbRoles.map((role) => (
+                    <tr key={role.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="p-4 text-slate-800">{role.name}</td>
+                      <td className="p-4 text-right space-x-2">
+                        <button
+                          onClick={() => {
+                            setCurrentRole(role);
+                            setIsEditingRole(true);
+                          }}
+                          className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          title="Editar"
+                        >
+                          <Edit className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteRole(role.id!)}
+                          className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Excluir"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {dbRoles.length === 0 && (
+                    <tr>
+                      <td colSpan={2} className="p-8 text-center text-slate-500">Nenhum papel encontrado.</td>
                     </tr>
                   )}
                 </tbody>
