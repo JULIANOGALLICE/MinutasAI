@@ -310,6 +310,31 @@ async function startServer() {
     }
   });
 
+  app.delete("/api/history", authenticate, (req: any, res) => {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: "IDs são obrigatórios" });
+    }
+    
+    try {
+      const placeholders = ids.map(() => '?').join(',');
+      let stmt;
+      let info;
+      
+      if (req.user.role === 'administrador') {
+        stmt = db.prepare(`DELETE FROM history WHERE id IN (${placeholders})`);
+        info = stmt.run(...ids);
+      } else {
+        stmt = db.prepare(`DELETE FROM history WHERE user_id = ? AND id IN (${placeholders})`);
+        info = stmt.run(req.user.id, ...ids);
+      }
+      
+      res.json({ success: true, deletedCount: info.changes });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao deletar histórico" });
+    }
+  });
+
   // Minutas API (Protect with authenticate)
   app.get("/api/minutas", authenticate, (req, res) => {
     try {

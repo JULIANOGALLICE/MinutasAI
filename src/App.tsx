@@ -195,6 +195,7 @@ export default function App() {
   const [geminiApiKey, setGeminiApiKey] = useState('');
   const [historyList, setHistoryList] = useState<HistoryItem[]>([]);
   const [viewingHistory, setViewingHistory] = useState<HistoryItem | null>(null);
+  const [selectedHistoryIds, setSelectedHistoryIds] = useState<number[]>([]);
   
   // --- State for Roles ---
   const [dbRoles, setDbRoles] = useState<{id: number, name: string}[]>([]);
@@ -432,6 +433,45 @@ export default function App() {
   const fetchHistory = async () => {
     const res = await fetch('/api/history');
     if (res.ok) setHistoryList(await res.json());
+  };
+
+  const handleDeleteHistory = async (idsToDelete?: number[]) => {
+    const targetIds = idsToDelete || selectedHistoryIds;
+    if (targetIds.length === 0) return;
+    
+    if (confirm(`Tem certeza que deseja excluir ${targetIds.length} item(ns) do histórico?`)) {
+      try {
+        const res = await fetch('/api/history', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: targetIds })
+        });
+        
+        if (res.ok) {
+          setSelectedHistoryIds(prev => prev.filter(id => !targetIds.includes(id)));
+          fetchHistory();
+        } else {
+          alert('Erro ao excluir histórico.');
+        }
+      } catch (err) {
+        console.error('Erro ao excluir histórico:', err);
+        alert('Erro ao excluir histórico.');
+      }
+    }
+  };
+
+  const toggleHistorySelection = (id: number) => {
+    setSelectedHistoryIds(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const toggleAllHistorySelection = () => {
+    if (selectedHistoryIds.length === historyList.length) {
+      setSelectedHistoryIds([]);
+    } else {
+      setSelectedHistoryIds(historyList.map(item => item.id));
+    }
   };
 
   const fetchMinutas = async () => {
@@ -1640,12 +1680,29 @@ export default function App() {
                   {user.role === 'administrador' ? 'Visualize todas as minutas geradas no sistema.' : 'Visualize suas minutas geradas.'}
                 </p>
               </div>
+              {selectedHistoryIds.length > 0 && (
+                <button
+                  onClick={() => handleDeleteHistory()}
+                  className="bg-red-50 text-red-600 hover:bg-red-100 px-4 py-2 rounded-xl font-medium flex items-center gap-2 transition-colors border border-red-200"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Excluir Selecionados ({selectedHistoryIds.length})
+                </button>
+              )}
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="p-4 w-12 text-center">
+                      <input 
+                        type="checkbox" 
+                        checked={historyList.length > 0 && selectedHistoryIds.length === historyList.length}
+                        onChange={toggleAllHistorySelection}
+                        className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                      />
+                    </th>
                     {user.role === 'administrador' && <th className="p-4 font-semibold text-slate-600 text-sm">Usuário</th>}
                     <th className="p-4 font-semibold text-slate-600 text-sm">Modelo Utilizado</th>
                     <th className="p-4 font-semibold text-slate-600 text-sm">Data</th>
@@ -1654,20 +1711,37 @@ export default function App() {
                 </thead>
                 <tbody>
                   {historyList.map(h => (
-                    <tr key={h.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                    <tr key={h.id} className={`border-b border-slate-100 last:border-0 hover:bg-slate-50 ${selectedHistoryIds.includes(h.id) ? 'bg-indigo-50/50' : ''}`}>
+                      <td className="p-4 text-center">
+                        <input 
+                          type="checkbox" 
+                          checked={selectedHistoryIds.includes(h.id)}
+                          onChange={() => toggleHistorySelection(h.id)}
+                          className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                        />
+                      </td>
                       {user.role === 'administrador' && <td className="p-4 font-medium text-slate-800">{h.username}</td>}
                       <td className="p-4 text-slate-600">{h.minuta_name}</td>
                       <td className="p-4 text-slate-500 text-sm">{new Date(h.created_at).toLocaleString('pt-BR')}</td>
                       <td className="p-4 text-center">
-                        <button onClick={() => setViewingHistory(h)} className="text-slate-400 hover:text-indigo-600 p-2 rounded-lg transition-colors" title="Visualizar">
-                          <Eye className="w-5 h-5" />
-                        </button>
+                        <div className="flex items-center justify-center gap-2">
+                          <button onClick={() => setViewingHistory(h)} className="text-slate-400 hover:text-indigo-600 p-2 rounded-lg transition-colors" title="Visualizar">
+                            <Eye className="w-5 h-5" />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteHistory([h.id])} 
+                            className="text-slate-400 hover:text-red-600 p-2 rounded-lg transition-colors" 
+                            title="Excluir"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
                   {historyList.length === 0 && (
                     <tr>
-                      <td colSpan={user.role === 'administrador' ? 4 : 3} className="p-8 text-center text-slate-500">Nenhum histórico encontrado.</td>
+                      <td colSpan={user.role === 'administrador' ? 5 : 4} className="p-8 text-center text-slate-500">Nenhum histórico encontrado.</td>
                     </tr>
                   )}
                 </tbody>
