@@ -59,29 +59,46 @@ export async function extractTextFromPdf(base64Pdf: string): Promise<string> {
         },
       ],
     });
-    return response.text || "";
+    let resultText = response.text || "";
+    resultText = resultText.replace(/```(?:html|markdown)?\s*([\s\S]*?)\s*```/gi, '$1');
+    return resultText;
   } catch (error: any) {
     console.error("Failed to extract text from PDF", error);
     throw new Error("Erro ao extrair texto do PDF.");
   }
 }
 
-export async function extractPeopleFromDocuments(base64Pdf: string): Promise<string[]> {
+export interface DocumentInput {
+  name: string;
+  description: string;
+  base64: string;
+}
+
+export async function extractPeopleFromDocuments(documents: DocumentInput[]): Promise<string[]> {
   try {
     const aiInstance = await getAI();
+    
+    const parts: any[] = [];
+    
+    documents.forEach((doc, index) => {
+      parts.push({
+        text: `Documento ${index + 1}: ${doc.name}${doc.description ? ` - Descrição: ${doc.description}` : ''}`
+      });
+      parts.push({
+        inlineData: {
+          mimeType: "application/pdf",
+          data: doc.base64,
+        },
+      });
+    });
+    
+    parts.push({
+      text: "Analise os documentos PDF acima que contêm documentos de identificação, certidões e/ou documentos de imóveis. Extraia o nome completo de todas as pessoas físicas principais mencionadas nestes documentos (as partes envolvidas na transação ou ato jurídico). Retorne APENAS uma lista com os nomes completos.",
+    });
+
     const response = await aiInstance.models.generateContent({
       model: "gemini-3.1-pro-preview",
-      contents: [
-        {
-          inlineData: {
-            mimeType: "application/pdf",
-            data: base64Pdf,
-          },
-        },
-        {
-          text: "Analise este documento PDF que contém documentos de identificação, certidões e/ou documentos de imóveis. Extraia o nome completo de todas as pessoas físicas principais mencionadas nestes documentos (as partes envolvidas na transação ou ato jurídico). Retorne APENAS uma lista com os nomes completos.",
-        },
-      ],
+      contents: { parts },
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -100,14 +117,14 @@ export async function extractPeopleFromDocuments(base64Pdf: string): Promise<str
   } catch (error: any) {
     console.error("Failed to parse JSON response or Gemini API Error", error);
     if (error.message && error.message.includes("Document size exceeds supported limit")) {
-      throw new Error("O tamanho do documento excede o limite suportado de 50MB. Por favor, comprima o arquivo PDF antes de enviar.");
+      throw new Error("O tamanho dos documentos excede o limite suportado. Por favor, comprima os arquivos PDF antes de enviar.");
     }
     return [];
   }
 }
 
 export async function generateDeedDraft(
-  base64Pdf: string,
+  documents: DocumentInput[],
   deedType: string,
   roles: Record<string, string>,
   minutaContent?: string,
@@ -118,14 +135,20 @@ export async function generateDeedDraft(
   const parts: any[] = [
     {
       text: "Abaixo estão os documentos das partes e do imóvel (matrículas, RGs, CPFs, certidões):",
-    },
-    {
+    }
+  ];
+
+  documents.forEach((doc, index) => {
+    parts.push({
+      text: `Documento ${index + 1}: ${doc.name}${doc.description ? ` - Descrição: ${doc.description}` : ''}`
+    });
+    parts.push({
       inlineData: {
         mimeType: "application/pdf",
-        data: base64Pdf,
+        data: doc.base64,
       },
-    },
-  ];
+    });
+  });
 
   if (minutaContent) {
     parts.push({
@@ -165,7 +188,8 @@ Instruções RIGOROSAS:
     instructions += `\n\nINSTRUÇÕES ESPECÍFICAS DESTA MINUTA:\n${templateInstructions}`;
   }
 
-  instructions += `\n\nATENÇÃO - FORMATAÇÃO RICA (WORD): Você DEVE utilizar tags HTML para formatar o texto (ex: <b>negrito</b>, <i>itálico</i>, <span style="color: red">texto colorido</span>) sempre que solicitado ou para destacar informações. O modelo fornecido também pode conter essas tags HTML, que devem ser estritamente respeitadas e mantidas na saída.`;
+  instructions += `\n\nATENÇÃO - FORMATAÇÃO RICA (WORD): Você DEVE utilizar tags HTML para formatar o texto (ex: <b>negrito</b>, <i>itálico</i>, <span style="color: red">texto colorido</span>) sempre que solicitado ou para destacar informações. O modelo fornecido também pode conter essas tags HTML, que devem ser estritamente respeitadas e mantidas na saída.
+MUITO IMPORTANTE: NÃO coloque a minuta gerada dentro de blocos de código markdown (como \`\`\`html ... \`\`\`). Retorne o texto/HTML diretamente na resposta.`;
 
   instructions = instructions
     .replace('{{deedType}}', deedType)
@@ -186,7 +210,12 @@ Instruções RIGOROSAS:
       },
     });
 
-    return response.text || "Erro ao gerar a minuta.";
+    let resultText = response.text || "Erro ao gerar a minuta.";
+    
+    // Remove markdown code blocks if the AI still included them anywhere in the text
+    resultText = resultText.replace(/```(?:html|markdown)?\s*([\s\S]*?)\s*```/gi, '$1');
+    
+    return resultText;
   } catch (error: any) {
     console.error("Gemini API Error:", error);
     if (error.message && error.message.includes("Document size exceeds supported limit")) {

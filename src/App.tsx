@@ -147,6 +147,13 @@ const downloadAsWord = (element: HTMLElement, filename: string) => {
   URL.revokeObjectURL(url);
 };
 
+interface AppDocument {
+  id: string;
+  file: File;
+  base64: string;
+  description: string;
+}
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loginUsername, setLoginUsername] = useState('');
@@ -157,8 +164,7 @@ export default function App() {
   
   // --- State for Gerar Escritura ---
   const [step, setStep] = useState<Step>('upload');
-  const [docsFile, setDocsFile] = useState<File | null>(null);
-  const [docsBase64, setDocsBase64] = useState<string>('');
+  const [documents, setDocuments] = useState<AppDocument[]>([]);
   
   const [selectedMinutaId, setSelectedMinutaId] = useState<number | ''>('');
   
@@ -484,27 +490,51 @@ export default function App() {
   };
 
   const handleDocsUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && file.type === 'application/pdf') {
-      if (file.size > 45 * 1024 * 1024) {
-        setError('O arquivo é muito grande (limite de 45MB). Por favor, comprima o PDF antes de enviar.');
-        if (docsInputRef.current) docsInputRef.current.value = '';
-        return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const newDocs: AppDocument[] = [];
+    
+    for (const file of files) {
+      if (file.type === 'application/pdf') {
+        if (file.size > 45 * 1024 * 1024) {
+          setError(`O arquivo ${file.name} é muito grande (limite de 45MB).`);
+          continue;
+        }
+        try {
+          const base64 = await fileToBase64(file);
+          newDocs.push({
+            id: Math.random().toString(36).substring(7),
+            file,
+            base64,
+            description: ''
+          });
+        } catch (err) {
+          setError(`Erro ao processar o arquivo ${file.name}.`);
+        }
+      } else {
+        setError(`O arquivo ${file.name} não é um PDF válido.`);
       }
-      setDocsFile(file);
-      try {
-        const base64 = await fileToBase64(file);
-        setDocsBase64(base64);
-      } catch (err) {
-        setError('Erro ao processar o arquivo PDF.');
-      }
-    } else if (file) {
-      setError('Por favor, envie apenas arquivos PDF.');
     }
+
+    if (newDocs.length > 0) {
+      setDocuments(prev => [...prev, ...newDocs]);
+      setError('');
+    }
+    
+    if (docsInputRef.current) docsInputRef.current.value = '';
+  };
+
+  const removeDocument = (id: string) => {
+    setDocuments(prev => prev.filter(doc => doc.id !== id));
+  };
+
+  const updateDocumentDescription = (id: string, description: string) => {
+    setDocuments(prev => prev.map(doc => doc.id === id ? { ...doc, description } : doc));
   };
 
   const handleExtractPeople = async () => {
-    if (!docsBase64) {
+    if (documents.length === 0) {
       setError('Por favor, envie os documentos das partes.');
       return;
     }
@@ -513,8 +543,9 @@ export default function App() {
       return;
     }
     
-    if (docsBase64.length > 50 * 1024 * 1024) {
-      setError(`O tamanho do documento excede o limite suportado (50MB). Por favor, comprima o arquivo PDF. Tamanho atual: ${(docsBase64.length / 1024 / 1024).toFixed(1)}MB.`);
+    const totalSize = documents.reduce((acc, doc) => acc + doc.base64.length, 0);
+    if (totalSize > 50 * 1024 * 1024) {
+      setError(`O tamanho total dos documentos excede o limite suportado (50MB). Por favor, comprima os arquivos PDF. Tamanho atual: ${(totalSize / 1024 / 1024).toFixed(1)}MB.`);
       return;
     }
 
@@ -522,7 +553,12 @@ export default function App() {
     setStep('extracting');
     
     try {
-      const people = await extractPeopleFromDocuments(docsBase64);
+      const docsInput = documents.map(doc => ({
+        name: doc.file.name,
+        description: doc.description,
+        base64: doc.base64
+      }));
+      const people = await extractPeopleFromDocuments(docsInput);
       setExtractedPeople(people);
       
       const initialRoles: Record<string, string> = {};
@@ -581,8 +617,14 @@ export default function App() {
         console.error("Failed to fetch custom instructions");
       }
 
+      const docsInput = documents.map(doc => ({
+        name: doc.file.name,
+        description: doc.description,
+        base64: doc.base64
+      }));
+
       const generatedDraft = await generateDeedDraft(
-        docsBase64,
+        docsInput,
         minutaName || 'Escritura Pública',
         activeRoles,
         minutaContent,
@@ -659,8 +701,7 @@ export default function App() {
 
   const handleReset = () => {
     setStep('upload');
-    setDocsFile(null);
-    setDocsBase64('');
+    setDocuments([]);
     setExtractedPeople([]);
     setRoles({});
     setDraft('');
@@ -1121,13 +1162,13 @@ export default function App() {
                 <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
                   <h2 className="text-lg font-semibold mb-2">2. Documentos das Partes e Imóvel</h2>
                   <p className="text-slate-500 text-sm mb-6">
-                    Envie um único arquivo PDF contendo os RGs, CPFs, certidões de casamento/nascimento e matrículas/certidões do imóvel.
+                    Envie os arquivos PDF contendo os RGs, CPFs, certidões de casamento/nascimento e matrículas/certidões do imóvel. Você pode enviar um único arquivo com tudo ou vários arquivos separados.
                   </p>
                   
                   <div 
                     onClick={() => docsInputRef.current?.click()}
                     className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
-                      docsFile ? 'border-indigo-500 bg-indigo-50' : 'border-slate-300 hover:border-indigo-400 hover:bg-slate-50'
+                      documents.length > 0 ? 'border-indigo-500 bg-indigo-50' : 'border-slate-300 hover:border-indigo-400 hover:bg-slate-50'
                     }`}
                   >
                     <input 
@@ -1135,29 +1176,53 @@ export default function App() {
                       ref={docsInputRef} 
                       onChange={handleDocsUpload} 
                       accept="application/pdf" 
+                      multiple
                       className="hidden" 
                     />
                     <div className="mx-auto w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center mb-4">
-                      <Upload className={`w-6 h-6 ${docsFile ? 'text-indigo-600' : 'text-slate-400'}`} />
+                      <Upload className={`w-6 h-6 ${documents.length > 0 ? 'text-indigo-600' : 'text-slate-400'}`} />
                     </div>
-                    {docsFile ? (
-                      <div>
-                        <p className="font-medium text-indigo-900">{docsFile.name}</p>
-                        <p className="text-xs text-indigo-600 mt-1">{(docsFile.size / 1024 / 1024).toFixed(2)} MB</p>
-                      </div>
-                    ) : (
-                      <div>
-                        <p className="font-medium text-slate-700">Clique para selecionar o PDF</p>
-                        <p className="text-xs text-slate-500 mt-1">Apenas arquivos .pdf</p>
-                      </div>
-                    )}
+                    <div>
+                      <p className="font-medium text-slate-700">Clique para selecionar os PDFs</p>
+                      <p className="text-xs text-slate-500 mt-1">Você pode selecionar múltiplos arquivos .pdf</p>
+                    </div>
                   </div>
+
+                  {documents.length > 0 && (
+                    <div className="mt-6 space-y-3">
+                      <h3 className="text-sm font-medium text-slate-700">Arquivos Selecionados:</h3>
+                      {documents.map((doc) => (
+                        <div key={doc.id} className="flex items-center gap-4 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-slate-900 truncate" title={doc.file.name}>{doc.file.name}</p>
+                            <p className="text-xs text-slate-500">{(doc.file.size / 1024 / 1024).toFixed(2)} MB</p>
+                          </div>
+                          <div className="flex-1">
+                            <input
+                              type="text"
+                              placeholder="O que tem neste arquivo? (Ex: Vendedores, Imóvel)"
+                              value={doc.description}
+                              onChange={(e) => updateDocumentDescription(doc.id, e.target.value)}
+                              className="w-full text-sm border-slate-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            />
+                          </div>
+                          <button
+                            onClick={() => removeDocument(doc.id)}
+                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Remover arquivo"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-end">
                   <button
                     onClick={handleExtractPeople}
-                    disabled={!docsFile || !selectedMinutaId}
+                    disabled={documents.length === 0 || !selectedMinutaId}
                     className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-colors shadow-sm"
                   >
                     Avançar para Identificação
