@@ -1392,8 +1392,8 @@ export default function App() {
                     </div>
                   </div>
                   
-                  <div className="flex-1 overflow-y-auto p-8 bg-white" ref={draftRef}>
-                    <div className="prose prose-slate max-w-none prose-headings:font-serif prose-p:text-justify prose-p:leading-relaxed">
+                  <div className="flex-1 overflow-y-auto overflow-x-hidden p-8 bg-white" ref={draftRef}>
+                    <div className="prose prose-slate max-w-none prose-headings:font-serif prose-p:text-justify prose-p:leading-relaxed break-words whitespace-pre-wrap">
                       <Markdown rehypePlugins={[rehypeRaw]}>{draft}</Markdown>
                     </div>
                   </div>
@@ -1761,8 +1761,8 @@ export default function App() {
                 <X className="w-6 h-6" />
               </button>
             </div>
-            <div className="p-6 overflow-y-auto flex-1 bg-slate-50">
-              <div className="prose prose-slate max-w-none prose-headings:font-serif prose-p:text-justify prose-p:leading-relaxed bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
+            <div className="p-6 overflow-y-auto overflow-x-hidden flex-1 bg-slate-50">
+              <div className="prose prose-slate max-w-none prose-headings:font-serif prose-p:text-justify prose-p:leading-relaxed bg-white p-8 rounded-xl border border-slate-200 shadow-sm break-words whitespace-pre-wrap">
                 <Markdown rehypePlugins={[rehypeRaw]}>{viewingMinuta.content}</Markdown>
               </div>
             </div>
@@ -1773,14 +1773,14 @@ export default function App() {
       {viewingHistory && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-xl animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex justify-between items-center p-6 border-b border-slate-200">
-              <div>
+            <div className="flex justify-between items-start p-6 border-b border-slate-200">
+              <div className="flex-1 pr-4">
                 <h3 className="text-xl font-semibold text-slate-800">Histórico: {viewingHistory.minuta_name}</h3>
                 <p className="text-sm text-slate-500 mt-1">
                   Gerado por {viewingHistory.username} em {new Date(viewingHistory.created_at).toLocaleString('pt-BR')}
                 </p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 shrink-0">
                 <button 
                   onClick={handleCopyHistory}
                   className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
@@ -1795,13 +1795,13 @@ export default function App() {
                   <Download className="w-4 h-4" />
                   Download Word
                 </button>
-                <button onClick={() => setViewingHistory(null)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                <button onClick={() => setViewingHistory(null)} className="text-slate-400 hover:text-slate-600 transition-colors ml-2">
                   <X className="w-6 h-6" />
                 </button>
               </div>
             </div>
-            <div className="p-6 overflow-y-auto flex-1 bg-slate-50">
-              <div className="prose prose-slate max-w-none prose-headings:font-serif prose-p:text-justify prose-p:leading-relaxed bg-white p-8 rounded-xl border border-slate-200 shadow-sm" ref={historyDraftRef}>
+            <div className="p-6 overflow-y-auto overflow-x-hidden flex-1 bg-slate-50">
+              <div className="prose prose-slate max-w-none prose-headings:font-serif prose-p:text-justify prose-p:leading-relaxed bg-white p-8 rounded-xl border border-slate-200 shadow-sm break-words whitespace-pre-wrap" ref={historyDraftRef}>
                 <Markdown rehypePlugins={[rehypeRaw]}>{viewingHistory.content}</Markdown>
               </div>
             </div>
