@@ -19,15 +19,9 @@
   border: none;
 }
 
-/* Força a quebra de linha e previne overflow horizontal em conteúdos gerados pela IA */
-.prose {
-  overflow-wrap: break-word !important;
-  word-break: normal !important;
-}
-
+/* Previne overflow horizontal em conteúdos gerados pela IA */
 .prose * {
   max-width: 100% !important;
-  word-break: normal !important;
 }
 
 .prose code::before, .prose code::after {
@@ -36,8 +30,6 @@
 
 .prose pre, .prose code {
   white-space: pre-wrap !important;
-  overflow-wrap: break-word !important;
-  word-break: normal !important;
   background-color: transparent !important;
   color: inherit !important;
   font-family: inherit !important;
