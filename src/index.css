@@ -20,6 +20,11 @@
 }
 
 /* Previne overflow horizontal em conteúdos gerados pela IA */
+.prose {
+  overflow-wrap: break-word !important;
+  word-wrap: break-word !important;
+}
+
 .prose * {
   max-width: 100% !important;
 }
@@ -30,10 +35,13 @@
 
 .prose pre, .prose code {
   white-space: pre-wrap !important;
+  overflow-wrap: break-word !important;
+  word-wrap: break-word !important;
   background-color: transparent !important;
   color: inherit !important;
   font-family: inherit !important;
   font-size: inherit !important;
   padding: 0 !important;
-  overflow-x: hidden !important;
+  margin: 0 !important;
+  border: none !important;
 }
