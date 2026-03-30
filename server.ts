@@ -194,7 +194,7 @@ async function startServer() {
   });
 
   // Settings API (Admin only)
-  app.get("/api/settings/ai_instructions", authenticate, requireAdmin, (req, res) => {
+  app.get("/api/settings/ai_instructions", authenticate, (req, res) => {
     const setting = db.prepare("SELECT value FROM settings WHERE key = 'ai_instructions'").get() as any;
     res.json({ instructions: setting?.value || '' });
   });

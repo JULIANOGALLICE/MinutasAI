@@ -164,7 +164,7 @@ export async function generateDeedDraft(
     ? `\nInformações e Cláusulas Adicionais (INCLUIR NA MINUTA):\n${additionalDetails}\n` 
     : "";
 
-  let instructions = customInstructions || `Você é um Tabelião de Notas experiente no Brasil.
+  let instructions = `Você é um Tabelião de Notas experiente no Brasil.
 Com base nos documentos fornecidos, e nas seguintes informações:
 
 Tipo de Escritura solicitada: {{deedType}}
@@ -183,6 +183,10 @@ Instruções RIGOROSAS:
 7. INFORMAÇÕES ADICIONAIS: Se houver "Informações e Cláusulas Adicionais" fornecidas acima (como forma de pagamento, usufruto, incomunicabilidade, etc.), você DEVE redigir e incluir essas cláusulas no corpo da escritura, adaptando-as ao estilo do modelo.
 8. Não resuma a escritura. O resultado final deve ser a escritura completa, pronta para ser lida e preenchida nos espaços faltantes.
 9. Retorne o texto formatado em Markdown para facilitar a leitura.`;
+
+  if (customInstructions) {
+    instructions += `\n\nINSTRUÇÕES GERAIS DA IA (CONFIGURAÇÕES):\n${customInstructions}`;
+  }
 
   if (templateInstructions) {
     instructions += `\n\nINSTRUÇÕES ESPECÍFICAS DESTA MINUTA:\n${templateInstructions}`;
