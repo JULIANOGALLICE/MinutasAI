@@ -23,10 +23,14 @@
 .prose {
   overflow-wrap: break-word !important;
   word-wrap: break-word !important;
+  word-break: normal !important;
+  hyphens: none !important;
 }
 
 .prose * {
   max-width: 100% !important;
+  word-break: normal !important;
+  hyphens: none !important;
 }
 
 .prose code::before, .prose code::after {
@@ -37,6 +41,7 @@
   white-space: pre-wrap !important;
   overflow-wrap: break-word !important;
   word-wrap: break-word !important;
+  word-break: normal !important;
   background-color: transparent !important;
   color: inherit !important;
   font-family: inherit !important;

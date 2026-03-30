@@ -1393,7 +1393,7 @@ export default function App() {
                   </div>
                   
                   <div className="flex-1 overflow-y-auto overflow-x-hidden p-8 bg-white" ref={draftRef}>
-                    <div className="prose prose-slate max-w-none prose-headings:font-serif prose-p:leading-relaxed">
+                    <div className="prose prose-slate max-w-none prose-headings:font-serif prose-p:text-justify prose-p:leading-relaxed">
                       <Markdown rehypePlugins={[rehypeRaw]}>{draft}</Markdown>
                     </div>
                   </div>
@@ -1762,7 +1762,7 @@ export default function App() {
               </button>
             </div>
             <div className="p-6 overflow-y-auto overflow-x-hidden flex-1 bg-slate-50">
-              <div className="prose prose-slate max-w-none prose-headings:font-serif prose-p:leading-relaxed bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
+              <div className="prose prose-slate max-w-none prose-headings:font-serif prose-p:text-justify prose-p:leading-relaxed bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
                 <Markdown rehypePlugins={[rehypeRaw]}>{viewingMinuta.content}</Markdown>
               </div>
             </div>
@@ -1801,7 +1801,7 @@ export default function App() {
               </div>
             </div>
             <div className="p-6 overflow-y-auto overflow-x-hidden flex-1 bg-slate-50">
-              <div className="prose prose-slate max-w-none prose-headings:font-serif prose-p:leading-relaxed bg-white p-8 rounded-xl border border-slate-200 shadow-sm" ref={historyDraftRef}>
+              <div className="prose prose-slate max-w-none prose-headings:font-serif prose-p:text-justify prose-p:leading-relaxed bg-white p-8 rounded-xl border border-slate-200 shadow-sm" ref={historyDraftRef}>
                 <Markdown rehypePlugins={[rehypeRaw]}>{viewingHistory.content}</Markdown>
               </div>
             </div>
