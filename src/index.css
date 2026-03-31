@@ -21,16 +21,36 @@
 
 /* Previne overflow horizontal em conteúdos gerados pela IA */
 .prose {
-  overflow-wrap: break-word !important;
-  word-wrap: break-word !important;
+  overflow-wrap: normal !important;
+  word-wrap: normal !important;
   word-break: normal !important;
   hyphens: none !important;
+  -webkit-hyphens: none !important;
+  -moz-hyphens: none !important;
+  -ms-hyphens: none !important;
 }
 
 .prose * {
   max-width: 100% !important;
+  overflow-wrap: normal !important;
+  word-wrap: normal !important;
   word-break: normal !important;
   hyphens: none !important;
+  -webkit-hyphens: none !important;
+  -moz-hyphens: none !important;
+  -ms-hyphens: none !important;
+}
+
+.prose p {
+  text-align: justify !important;
+  text-justify: inter-word !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+  word-wrap: normal !important;
+  hyphens: none !important;
+  -webkit-hyphens: none !important;
+  -moz-hyphens: none !important;
+  -ms-hyphens: none !important;
 }
 
 .prose code::before, .prose code::after {

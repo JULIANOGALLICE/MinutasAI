@@ -210,6 +210,25 @@ async function startServer() {
     }
   });
 
+  app.get("/api/settings/debug_mode", authenticate, (req, res) => {
+    const setting = db.prepare("SELECT value FROM settings WHERE key = 'debug_mode'").get() as any;
+    res.json({ debugMode: setting?.value === 'true' });
+  });
+
+  app.put("/api/settings/debug_mode", authenticate, requireAdmin, (req, res) => {
+    const { debugMode } = req.body;
+    try {
+      const stmt = db.prepare(`
+        INSERT INTO settings (key, value) VALUES (?, ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+      `);
+      stmt.run('debug_mode', debugMode ? 'true' : 'false');
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao atualizar modo debug" });
+    }
+  });
+
   app.get("/api/settings/google", authenticate, requireAdmin, (req, res) => {
     const clientId = db.prepare("SELECT value FROM settings WHERE key = 'google_client_id'").get() as any;
     const clientSecret = db.prepare("SELECT value FROM settings WHERE key = 'google_client_secret'").get() as any;

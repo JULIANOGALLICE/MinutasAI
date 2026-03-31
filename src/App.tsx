@@ -178,6 +178,7 @@ export default function App() {
   const [debugMode, setDebugMode] = useState(false);
   const [showDebugModal, setShowDebugModal] = useState(false);
   const [debugPayload, setDebugPayload] = useState<any>(null);
+  const [viewingPdf, setViewingPdf] = useState<string | null>(null);
 
   const docsInputRef = useRef<HTMLInputElement>(null);
 
@@ -223,6 +224,7 @@ export default function App() {
     if (user) {
       fetchMinutas();
       fetchRoles();
+      fetchDebugMode();
       if (activeTab === 'historico') fetchHistory();
       if (user.role === 'administrador') {
         if (activeTab === 'usuarios') fetchUsers();
@@ -230,6 +232,32 @@ export default function App() {
       }
     }
   }, [user, activeTab]);
+
+  const fetchDebugMode = async () => {
+    try {
+      const res = await fetch('/api/settings/debug_mode');
+      if (res.ok) {
+        const data = await res.json();
+        setDebugMode(data.debugMode);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar modo debug:', err);
+    }
+  };
+
+  const handleToggleDebugMode = async () => {
+    const newMode = !debugMode;
+    setDebugMode(newMode);
+    try {
+      await fetch('/api/settings/debug_mode', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ debugMode: newMode }),
+      });
+    } catch (err) {
+      console.error('Erro ao salvar modo debug:', err);
+    }
+  };
 
   const fetchRoles = async () => {
     try {
@@ -1633,7 +1661,7 @@ export default function App() {
                   {debugMode ? 'Ativado' : 'Desativado'}
                 </span>
                 <button 
-                  onClick={() => setDebugMode(!debugMode)}
+                  onClick={handleToggleDebugMode}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${debugMode ? 'bg-indigo-600' : 'bg-slate-200'}`}
                 >
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${debugMode ? 'translate-x-6' : 'translate-x-1'}`} />
@@ -1995,8 +2023,19 @@ export default function App() {
                           <p className="text-xs text-slate-500 uppercase">{doc.description ? 'Com descrição' : 'Sem descrição'}</p>
                         </div>
                       </div>
-                      <div className="text-xs font-mono text-slate-400">
-                        {doc.base64 ? (doc.base64.length * 0.75 / 1024).toFixed(1) : 0} KB (Base64)
+                      <div className="flex items-center gap-4">
+                        <div className="text-xs font-mono text-slate-400">
+                          {doc.base64 ? (doc.base64.length * 0.75 / 1024).toFixed(1) : 0} KB (Base64)
+                        </div>
+                        {doc.base64 && (
+                          <button
+                            onClick={() => setViewingPdf(`data:application/pdf;base64,${doc.base64}`)}
+                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            title="Visualizar PDF"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -2025,6 +2064,32 @@ export default function App() {
               >
                 Prosseguir <ArrowRight className="w-4 h-4" />
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PDF Viewer Modal */}
+      {viewingPdf && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[110] flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-300">
+            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-indigo-600" /> Visualizador de PDF
+              </h2>
+              <button 
+                onClick={() => setViewingPdf(null)}
+                className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="flex-1 bg-slate-100">
+              <iframe 
+                src={viewingPdf} 
+                className="w-full h-full border-none"
+                title="PDF Viewer"
+              />
             </div>
           </div>
         </div>
