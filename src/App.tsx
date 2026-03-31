@@ -1954,19 +1954,28 @@ export default function App() {
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               <div className="space-y-2">
                 <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
-                  <FileText className="w-4 h-4" /> Prompt da Minuta
+                  <FileText className="w-4 h-4" /> Detalhes da Geração
                 </h3>
                 <div className="bg-slate-900 rounded-xl p-4 font-mono text-sm text-slate-300 overflow-x-auto whitespace-pre-wrap border border-slate-800 shadow-inner max-h-60 overflow-y-auto">
-                  {debugPayload.prompt}
+                  <strong>Minuta:</strong> {debugPayload.minutaName}
+                  <br /><br />
+                  <strong>Instruções Customizadas:</strong><br />
+                  {debugPayload.customInstructions || 'Nenhuma'}
+                  <br /><br />
+                  <strong>Instruções do Template:</strong><br />
+                  {debugPayload.templateInstructions || 'Nenhuma'}
+                  <br /><br />
+                  <strong>Detalhes Adicionais:</strong><br />
+                  {debugPayload.additionalDetails || 'Nenhum'}
                 </div>
               </div>
 
               <div className="space-y-2">
                 <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
-                  <Users className="w-4 h-4" /> Dados das Partes (JSON)
+                  <Users className="w-4 h-4" /> Papéis Ativos (JSON)
                 </h3>
                 <div className="bg-slate-900 rounded-xl p-4 font-mono text-sm text-emerald-400 overflow-x-auto whitespace-pre-wrap border border-slate-800 shadow-inner max-h-60 overflow-y-auto">
-                  {JSON.stringify(debugPayload.peopleData, null, 2)}
+                  {JSON.stringify(debugPayload.activeRoles, null, 2)}
                 </div>
               </div>
 
@@ -1982,12 +1991,12 @@ export default function App() {
                           <FileText className="w-4 h-4" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-slate-800">Documento {idx + 1}</p>
-                          <p className="text-xs text-slate-500 uppercase">{doc.inlineData.mimeType}</p>
+                          <p className="text-sm font-medium text-slate-800">{doc.name || `Documento ${idx + 1}`}</p>
+                          <p className="text-xs text-slate-500 uppercase">{doc.description ? 'Com descrição' : 'Sem descrição'}</p>
                         </div>
                       </div>
                       <div className="text-xs font-mono text-slate-400">
-                        {(doc.inlineData.data.length * 0.75 / 1024).toFixed(1)} KB (Base64)
+                        {doc.base64 ? (doc.base64.length * 0.75 / 1024).toFixed(1) : 0} KB (Base64)
                       </div>
                     </div>
                   ))}
