@@ -1449,7 +1449,7 @@ export default function App() {
                   </div>
                   
                   <div className="flex-1 overflow-y-auto overflow-x-hidden p-8 bg-white" ref={draftRef}>
-                    <div className="prose prose-slate max-w-none prose-headings:font-serif prose-p:text-justify prose-p:leading-relaxed">
+                    <div className="prose prose-slate max-w-none prose-headings:font-serif prose-p:leading-relaxed">
                       <Markdown rehypePlugins={[rehypeRaw]}>{draft}</Markdown>
                     </div>
                   </div>
@@ -1841,7 +1841,7 @@ export default function App() {
               </button>
             </div>
             <div className="p-6 overflow-y-auto overflow-x-hidden flex-1 bg-slate-50">
-              <div className="prose prose-slate max-w-none prose-headings:font-serif prose-p:text-justify prose-p:leading-relaxed bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
+              <div className="prose prose-slate max-w-none prose-headings:font-serif prose-p:leading-relaxed bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
                 <Markdown rehypePlugins={[rehypeRaw]}>{viewingMinuta.content}</Markdown>
               </div>
             </div>
@@ -1880,7 +1880,7 @@ export default function App() {
               </div>
             </div>
             <div className="p-6 overflow-y-auto overflow-x-hidden flex-1 bg-slate-50">
-              <div className="prose prose-slate max-w-none prose-headings:font-serif prose-p:text-justify prose-p:leading-relaxed bg-white p-8 rounded-xl border border-slate-200 shadow-sm" ref={historyDraftRef}>
+              <div className="prose prose-slate max-w-none prose-headings:font-serif prose-p:leading-relaxed bg-white p-8 rounded-xl border border-slate-200 shadow-sm" ref={historyDraftRef}>
                 <Markdown rehypePlugins={[rehypeRaw]}>{viewingHistory.content}</Markdown>
               </div>
             </div>
@@ -2020,7 +2020,7 @@ export default function App() {
                         </div>
                         <div>
                           <p className="text-sm font-medium text-slate-800">{doc.name || `Documento ${idx + 1}`}</p>
-                          <p className="text-xs text-slate-500 uppercase">{doc.description ? 'Com descrição' : 'Sem descrição'}</p>
+                          <p className="text-xs text-slate-500">{doc.description || 'Sem descrição'}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
@@ -2029,7 +2029,21 @@ export default function App() {
                         </div>
                         {doc.base64 && (
                           <button
-                            onClick={() => setViewingPdf(`data:application/pdf;base64,${doc.base64}`)}
+                            onClick={() => {
+                              try {
+                                const byteCharacters = atob(doc.base64);
+                                const byteNumbers = new Array(byteCharacters.length);
+                                for (let i = 0; i < byteCharacters.length; i++) {
+                                  byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                }
+                                const byteArray = new Uint8Array(byteNumbers);
+                                const blob = new Blob([byteArray], { type: 'application/pdf' });
+                                const url = URL.createObjectURL(blob);
+                                setViewingPdf(url);
+                              } catch (err) {
+                                alert('Erro ao visualizar PDF');
+                              }
+                            }}
                             className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                             title="Visualizar PDF"
                           >
@@ -2078,7 +2092,10 @@ export default function App() {
                 <FileText className="w-5 h-5 text-indigo-600" /> Visualizador de PDF
               </h2>
               <button 
-                onClick={() => setViewingPdf(null)}
+                onClick={() => {
+                  if (viewingPdf) URL.revokeObjectURL(viewingPdf);
+                  setViewingPdf(null);
+                }}
                 className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-400 hover:text-slate-600"
               >
                 <X className="w-6 h-6" />
