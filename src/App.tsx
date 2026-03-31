@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, FileText, Users, FileSignature, CheckCircle, ArrowRight, RefreshCw, Copy, Plus, Trash2, Edit2, Database, Save, X, Search, Eye, LogOut, Settings, Clock, UserPlus, Key, Download, Edit } from 'lucide-react';
+import { Upload, FileText, Users, FileSignature, CheckCircle, ArrowRight, RefreshCw, Copy, Plus, Trash2, Edit2, Database, Save, X, Search, Eye, LogOut, Settings, Clock, UserPlus, Key, Download, Edit, Code } from 'lucide-react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import ReactQuill from 'react-quill-new';
@@ -175,6 +175,9 @@ export default function App() {
   const [draft, setDraft] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [modelUsed, setModelUsed] = useState<string>('');
+  const [debugMode, setDebugMode] = useState(false);
+  const [showDebugModal, setShowDebugModal] = useState(false);
+  const [debugPayload, setDebugPayload] = useState<any>(null);
 
   const docsInputRef = useRef<HTMLInputElement>(null);
 
@@ -619,9 +622,44 @@ export default function App() {
     setRoles(prev => ({ ...prev, [person]: role }));
   };
 
+  const executeGenerateDraft = async (payload: any) => {
+    setStep('generating');
+    try {
+      const generatedDraft = await generateDeedDraft(
+        payload.docsInput,
+        payload.minutaName,
+        payload.activeRoles,
+        payload.minutaContent,
+        payload.additionalDetails,
+        payload.customInstructions,
+        payload.templateInstructions
+      );
+      
+      setDraft(generatedDraft);
+      setStep('result');
+
+      try {
+        await fetch('/api/history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            minuta_id: payload.selectedMinutaId || null,
+            minuta_name: payload.minutaName || 'Padrão do Sistema',
+            content: generatedDraft
+          }),
+        });
+      } catch (e) {
+        console.error("Failed to save history");
+      }
+    } catch (err) {
+      console.error(err);
+      setError((err as Error).message || 'Ocorreu um erro ao gerar a minuta. Tente novamente.');
+      setStep('roles');
+    }
+  };
+
   const handleGenerateDraft = async () => {
     setError('');
-    setStep('generating');
     setModelUsed('');
     
     try {
@@ -663,37 +701,27 @@ export default function App() {
         base64: doc.base64
       }));
 
-      const generatedDraft = await generateDeedDraft(
+      const payload = {
         docsInput,
-        minutaName || 'Escritura Pública',
+        minutaName: minutaName || 'Escritura Pública',
         activeRoles,
         minutaContent,
         additionalDetails,
         customInstructions,
-        templateInstructions
-      );
-      
-      setDraft(generatedDraft);
-      setStep('result');
+        templateInstructions,
+        selectedMinutaId
+      };
 
-      try {
-        await fetch('/api/history', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            minuta_id: selectedMinutaId || null,
-            minuta_name: minutaName || 'Padrão do Sistema',
-            content: generatedDraft
-          }),
-        });
-      } catch (e) {
-        console.error("Failed to save history");
+      if (debugMode) {
+        setDebugPayload(payload);
+        setShowDebugModal(true);
+      } else {
+        await executeGenerateDraft(payload);
       }
 
     } catch (err) {
       console.error(err);
-      setError((err as Error).message || 'Ocorreu um erro ao gerar a minuta. Tente novamente.');
-      setStep('roles');
+      setError((err as Error).message || 'Ocorreu um erro ao preparar a geração. Tente novamente.');
     }
   };
 
@@ -1590,6 +1618,29 @@ export default function App() {
 
         {activeTab === 'configuracoes' && user.role === 'administrador' && (
           <div className="space-y-6 animate-in fade-in duration-500">
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600">
+                  <Code className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">Modo de Depuração (Debug)</h3>
+                  <p className="text-sm text-slate-500">Habilita a visualização do payload antes do envio para a IA.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 bg-slate-50 px-4 py-2 rounded-xl border border-slate-200">
+                <span className={`text-xs font-bold uppercase tracking-wider ${debugMode ? 'text-indigo-600' : 'text-slate-400'}`}>
+                  {debugMode ? 'Ativado' : 'Desativado'}
+                </span>
+                <button 
+                  onClick={() => setDebugMode(!debugMode)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${debugMode ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${debugMode ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+            </div>
+
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-2xl font-bold text-slate-800">Instruções da IA</h2>
@@ -1874,6 +1925,98 @@ export default function App() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Debug Modal */}
+      {showDebugModal && debugPayload && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-300">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-200">
+                  <Code className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-slate-800">Modo Debug: Análise de Payload</h2>
+                  <p className="text-sm text-slate-500">Revise os dados antes de enviar para a IA</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowDebugModal(false)}
+                className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              <div className="space-y-2">
+                <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                  <FileText className="w-4 h-4" /> Prompt da Minuta
+                </h3>
+                <div className="bg-slate-900 rounded-xl p-4 font-mono text-sm text-slate-300 overflow-x-auto whitespace-pre-wrap border border-slate-800 shadow-inner max-h-60 overflow-y-auto">
+                  {debugPayload.prompt}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                  <Users className="w-4 h-4" /> Dados das Partes (JSON)
+                </h3>
+                <div className="bg-slate-900 rounded-xl p-4 font-mono text-sm text-emerald-400 overflow-x-auto whitespace-pre-wrap border border-slate-800 shadow-inner max-h-60 overflow-y-auto">
+                  {JSON.stringify(debugPayload.peopleData, null, 2)}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                  <Upload className="w-4 h-4" /> Arquivos Anexados ({debugPayload.docsInput.length})
+                </h3>
+                <div className="grid grid-cols-1 gap-3">
+                  {debugPayload.docsInput.map((doc: any, idx: number) => (
+                    <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600">
+                          <FileText className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-slate-800">Documento {idx + 1}</p>
+                          <p className="text-xs text-slate-500 uppercase">{doc.inlineData.mimeType}</p>
+                        </div>
+                      </div>
+                      <div className="text-xs font-mono text-slate-400">
+                        {(doc.inlineData.data.length * 0.75 / 1024).toFixed(1)} KB (Base64)
+                      </div>
+                    </div>
+                  ))}
+                  {debugPayload.docsInput.length === 0 && (
+                    <div className="text-center py-4 text-slate-400 italic text-sm">
+                      Nenhum arquivo anexado
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+              <button 
+                onClick={() => setShowDebugModal(false)}
+                className="px-6 py-2.5 rounded-xl font-semibold text-slate-600 hover:bg-slate-200 transition-all border border-slate-200"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={() => {
+                  setShowDebugModal(false);
+                  executeGenerateDraft(debugPayload);
+                }}
+                className="px-8 py-2.5 rounded-xl font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all flex items-center gap-2"
+              >
+                Prosseguir <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}
